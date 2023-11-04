@@ -36,7 +36,7 @@ pub fn puzzle_2(input_data: &str) -> Result<u32, ParseError> {
 }
 
 pub fn main(data_dir: &str) {
-    println!("Day 1");
+    println!("Day 1: Calorie Counting");
     let data = load(data_dir, 1, None);
 
     // Puzzle 1.
@@ -77,12 +77,12 @@ mod tests {
         10000";
 
     #[test]
-    fn example_1() {
+    fn example_1_puzzle_1() {
         assert_eq!(puzzle_1(self::EXAMPLE_INPUT), Ok(24_000));
     }
 
     #[test]
-    fn example_2() {
+    fn example_1_puzzle_2() {
         assert_eq!(puzzle_2(self::EXAMPLE_INPUT), Ok(45000));
     }
 }
