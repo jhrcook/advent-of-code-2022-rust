@@ -4,8 +4,6 @@ use thiserror::Error;
 
 #[derive(Error, Debug, PartialEq, Eq)]
 pub enum Day3Error {
-    #[error("input data parsing")]
-    Parsing(String),
     #[error("no shared itmes")]
     NoSharedItem,
 }
@@ -43,7 +41,7 @@ impl RuckSack {
 }
 
 impl RuckSack {
-    fn shared_item(self) -> Result<char, Day3Error> {
+    fn first_shared_item(self) -> Result<char, Day3Error> {
         let h1: HashSet<char> = HashSet::from_iter(self.c1);
         let h2: HashSet<char> = HashSet::from_iter(self.c2);
         match h1.intersection(&h2).next() {
@@ -61,13 +59,34 @@ pub fn puzzle_1(input_data: &str) -> Result<u32, Day3Error> {
             continue;
         }
         let rucksack = RuckSack::from_str(line.trim());
-        tally += score_map.score[&rucksack.shared_item().unwrap()];
+        tally += score_map.score[&rucksack.first_shared_item().unwrap()];
     }
     Ok(tally)
 }
 
 pub fn puzzle_2(input_data: &str) -> Result<u32, Day3Error> {
-    Ok(1)
+    let mut tally = 0;
+    let scorer = AlphaScore::new();
+    let iter: Vec<&str> = input_data
+        .lines()
+        .map(|x| x.trim())
+        .filter(|x| !x.is_empty())
+        .collect();
+    for group in iter.windows(3).step_by(3) {
+        let mut counter = HashMap::new();
+        for line in group {
+            let set: HashSet<char> = line.chars().collect();
+            for c in set {
+                counter.entry(c).and_modify(|e| *e += 1).or_insert(1);
+            }
+        }
+        for (c, n) in counter.iter() {
+            if n == &3 {
+                tally += scorer.score[c];
+            }
+        }
+    }
+    Ok(tally)
 }
 
 pub fn main(data_dir: &str) {
@@ -83,12 +102,12 @@ pub fn main(data_dir: &str) {
     assert_eq!(answer_1, Ok(7446));
 
     // Puzzle 2.
-    // let answer_2 = puzzle_2(&data);
-    // match answer_2 {
-    //     Ok(x) => println!(" Puzzle 2: {}", x),
-    //     Err(e) => panic!("Error on Puzzle 2: {}", e),
-    // }
-    // assert_eq!(answer_2, Ok(12014))
+    let answer_2 = puzzle_2(&data);
+    match answer_2 {
+        Ok(x) => println!(" Puzzle 2: {}", x),
+        Err(e) => panic!("Error on Puzzle 2: {}", e),
+    }
+    assert_eq!(answer_2, Ok(2646))
 }
 
 #[cfg(test)]
@@ -108,8 +127,8 @@ mod tests {
     fn example_1_puzzle_1() {
         assert_eq!(puzzle_1(EXAMPLE_1), Ok(157))
     }
-    // #[test]
-    // fn example_1_puzzle_2() {
-    //     assert_eq!(puzzle_2(EXAMPLE_1), Ok(12))
-    // }
+    #[test]
+    fn example_1_puzzle_2() {
+        assert_eq!(puzzle_2(EXAMPLE_1), Ok(70))
+    }
 }
