@@ -6,7 +6,7 @@ use clap::Parser;
 #[command(author, version, about, long_about = None)]
 struct Args {
     /// Data directory.
-    #[arg(short, long)]
+    #[arg(short, long, default_value_t = String::from("puzzle-input"))]
     data_dir: String,
 }
 
