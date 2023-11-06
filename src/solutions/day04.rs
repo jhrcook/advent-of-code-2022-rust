@@ -45,6 +45,11 @@ impl ElfRange {
         let r = self.to_range();
         (elf.from..=elf.to).map(|x| r.contains(&x)).all(|x| x)
     }
+
+    fn overlaps(self, elf: &ElfRange) -> bool {
+        let r = self.to_range();
+        (elf.from..=elf.to).map(|x| r.contains(&x)).any(|x| x)
+    }
 }
 
 fn parse_data(line: &str) -> Result<(ElfRange, ElfRange), PuzzleError> {
@@ -81,8 +86,19 @@ pub fn puzzle_1(input_data: &str) -> Result<u32, PuzzleError> {
     Ok(count)
 }
 
-pub fn puzzle_2(_input_data: &str) -> Result<u32, PuzzleError> {
-    Ok(1)
+pub fn puzzle_2(input_data: &str) -> Result<u32, PuzzleError> {
+    let mut count = 0;
+    for line in input_data
+        .lines()
+        .map(|x| x.trim())
+        .filter(|x| !x.is_empty())
+    {
+        let (elf1, elf2) = parse_data(line)?;
+        if elf1.overlaps(&elf2) {
+            count += 1;
+        }
+    }
+    Ok(count)
 }
 
 pub fn main(data_dir: &str) {
@@ -98,17 +114,17 @@ pub fn main(data_dir: &str) {
     assert_eq!(answer_1, Ok(507));
 
     // Puzzle 2.
-    // let answer_2 = puzzle_2(&data);
-    // match answer_2 {
-    //     Ok(x) => println!(" Puzzle 2: {}", x),
-    //     Err(e) => panic!("Error on Puzzle 2: {}", e),
-    // }
-    // assert_eq!(answer_2, Ok(2646))
+    let answer_2 = puzzle_2(&data);
+    match answer_2 {
+        Ok(x) => println!(" Puzzle 2: {}", x),
+        Err(e) => panic!("Error on Puzzle 2: {}", e),
+    }
+    assert_eq!(answer_2, Ok(897))
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::solutions::day04::puzzle_1;
+    use crate::solutions::day04::{puzzle_1, puzzle_2};
 
     const EXAMPLE_1: &str = "
     2-4,6-8
@@ -123,8 +139,8 @@ mod tests {
     fn example_1_puzzle_1() {
         assert_eq!(puzzle_1(EXAMPLE_1), Ok(2))
     }
-    // #[test]
-    // fn example_1_puzzle_2() {
-    //     assert_eq!(puzzle_2(EXAMPLE_1), Ok(70))
-    // }
+    #[test]
+    fn example_1_puzzle_2() {
+        assert_eq!(puzzle_2(EXAMPLE_1), Ok(4))
+    }
 }
