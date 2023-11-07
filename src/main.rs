@@ -1,5 +1,6 @@
 use advent_of_code_2022_rust::run_all;
 use clap::Parser;
+use std::time::Instant;
 
 /// Simple program to greet a person
 #[derive(Parser, Debug)]
@@ -13,6 +14,9 @@ struct Args {
 fn main() {
     println!("Running all solutions.");
     let args = Args::parse();
+    let start = Instant::now();
     run_all(&args.data_dir);
-    println!("Done! 🎉")
+    let duration = start.elapsed();
+    print!("Done! 🎉");
+    println!(" -- Elapsed time: {:?} s", duration.as_secs());
 }

@@ -1,6 +1,5 @@
-use std::ops::RangeInclusive;
-
 use crate::data::load;
+use std::ops::RangeInclusive;
 use thiserror::Error;
 
 #[derive(Error, Debug, PartialEq, Eq)]
