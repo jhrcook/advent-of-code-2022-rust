@@ -47,13 +47,29 @@ impl Supplies {
             .collect::<Vec<_>>();
     }
 
-    fn perform(&mut self, crane_op: &CraneOp) -> Result<(), PuzzleError> {
+    fn perform_9000(&mut self, crane_op: &CraneOp) -> Result<(), PuzzleError> {
         for _ in 0..crane_op.n {
             let c = self.stacks[crane_op.from - 1]
                 .pop()
                 .ok_or(PuzzleError::FailedTakeFromStack)?;
             self.stacks[crane_op.to - 1].push(c);
         }
+        Ok(())
+    }
+
+    fn perform_9001(&mut self, crane_op: &CraneOp) -> Result<(), PuzzleError> {
+        let mut temp_stack = vec![];
+        for _ in 0..crane_op.n {
+            let c = self.stacks[crane_op.from - 1]
+                .pop()
+                .ok_or(PuzzleError::FailedTakeFromStack)?;
+            temp_stack.push(c);
+        }
+        let _ = temp_stack
+            .iter()
+            .rev()
+            .map(|c| self.stacks[crane_op.to - 1].push(*c))
+            .collect::<Vec<_>>();
         Ok(())
     }
 
@@ -112,7 +128,15 @@ fn parse_input(data: &str) -> (Supplies, Vec<CraneOp>) {
 pub fn puzzle_1(input_data: &str) -> Result<String, PuzzleError> {
     let (mut supplies, crane_ops) = parse_input(input_data);
     for crane_op in crane_ops {
-        let _ = supplies.perform(&crane_op);
+        let _ = supplies.perform_9000(&crane_op);
+    }
+    supplies.top_of_stacks()
+}
+
+pub fn puzzle_2(input_data: &str) -> Result<String, PuzzleError> {
+    let (mut supplies, crane_ops) = parse_input(input_data);
+    for crane_op in crane_ops {
+        let _ = supplies.perform_9001(&crane_op);
     }
     supplies.top_of_stacks()
 }
@@ -128,11 +152,19 @@ pub fn main(data_dir: &str) {
         Err(e) => panic!("Error on Puzzle 1: {}", e),
     }
     assert_eq!(answer_1, Ok("RFFFWBPNS".to_string()));
+
+    // Puzzle 2.
+    let answer_2 = puzzle_2(&data);
+    match &answer_2 {
+        Ok(x) => println!(" Puzzle 1: {}", x),
+        Err(e) => panic!("Error on Puzzle 1: {}", e),
+    }
+    assert_eq!(answer_2, Ok("CQQBBJFCS".to_string()));
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::solutions::day05::puzzle_1;
+    use crate::solutions::day05::{puzzle_1, puzzle_2};
 
     const EXAMPLE_1: &str = "
         [D]
@@ -149,5 +181,10 @@ mod tests {
     #[test]
     fn example_1_puzzle_1() {
         assert_eq!(puzzle_1(EXAMPLE_1), Ok("CMZ".to_string()))
+    }
+
+    #[test]
+    fn example_1_puzzle_2() {
+        assert_eq!(puzzle_2(EXAMPLE_1), Ok("MCD".to_string()))
     }
 }

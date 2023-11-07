@@ -18,5 +18,5 @@ fn main() {
     run_all(&args.data_dir);
     let duration = start.elapsed();
     print!("Done! 🎉");
-    println!(" -- Elapsed time: {:?} s", duration.as_secs());
+    println!(" -- Elapsed time: {:?}", duration);
 }
