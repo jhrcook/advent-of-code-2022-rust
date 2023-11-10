@@ -1,16 +1,19 @@
 use crate::data::load_raw;
-use std::{
-    collections::{HashMap, HashSet},
-    ops::Deref,
-};
+use std::collections::{HashMap, HashSet};
 use thiserror::Error;
 
 #[derive(Error, Debug, PartialEq, Eq)]
 pub enum PuzzleError {
-    #[error("Unexpected command.")]
-    UnexpectedCommand(String),
-    #[error("Adding edge from non-existent node.")]
-    AddingLinkFromNonexistentNode(String, String),
+    // #[error("Unexpected command.")]
+    // UnexpectedCommand(String),
+    // #[error("Adding edge from non-existent node.")]
+    // AddingLinkFromNonexistentNode(String, String),
+    // #[error("Logic error trying to add a child without a current parent node.")]
+    // AddingChildToNoneNode,
+    #[error("Node does not have a parent.")]
+    NoParentNode(String),
+    #[error("Cannot parse file size.")]
+    ParsingFileSize(String),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -27,68 +30,116 @@ struct Graph {
 }
 
 impl Graph {
-    fn new(root: &str) -> Self {
+    fn new(root: &Node) -> Self {
         let mut graph = Graph {
             node_list: HashSet::new(),
             map: HashMap::new(),
             parents: HashMap::new(),
         };
-        let root_node = Node {
-            name: root.to_string(),
-            size: 0,
-        };
-        graph.node_list.insert(root_node.clone());
-        graph.map.insert(root_node, HashSet::new());
+        graph.node_list.insert(root.clone());
+        graph.map.insert(root.clone(), HashSet::new());
         graph
     }
 }
 
 impl Graph {
-    fn contains_node(self, node: Node) -> bool {
+    fn contains_node(&self, node: Node) -> bool {
         self.node_list.contains(&node)
     }
 
-    fn add_edge(mut self, from: Node, to: Node) -> Result<(), PuzzleError> {
+    fn add_node(&mut self, node: &Node) {
+        self.node_list.insert(node.clone());
+    }
+
+    fn add_edge(&mut self, from: &Node, to: &Node) -> Result<(), PuzzleError> {
         // Add link: from -> to.
-        self.map
-            .get_mut(&from)
-            .ok_or(PuzzleError::AddingLinkFromNonexistentNode(
-                from.name.clone(),
-                to.name.clone(),
-            ))?
-            .insert(to.clone());
+        if !self.map.contains_key(from) {
+            self.map.insert(from.clone(), HashSet::new());
+        }
+        self.map.get_mut(from).unwrap().insert(to.clone());
         // Add parent: to -> from.
-        self.parents.insert(to.clone(), from);
+        self.parents.insert(to.clone(), from.clone());
         // Add new node to list.
-        self.node_list.insert(to);
+        self.node_list.insert(to.clone());
         Ok(())
+    }
+
+    fn get_parent(&self, of: &Node) -> Result<Node, PuzzleError> {
+        Ok(self
+            .parents
+            .get(of)
+            .ok_or(PuzzleError::NoParentNode(of.name.clone()))
+            .unwrap()
+            .clone())
+    }
+
+    fn sum_subtree_size(&self, node: &Node) -> usize {
+        let subtree_size: usize = match self.map.get(node) {
+            Some(children) => children.iter().map(|n| self.sum_subtree_size(n)).sum(),
+            None => 0,
+        };
+        node.size + subtree_size
     }
 }
 
 fn build_filesystem_tree(input_data: &str) -> Result<Graph, PuzzleError> {
-    let mut graph = Graph::new("/");
+    let root_node = Node {
+        name: "/".to_string(),
+        size: 0,
+    };
+    let mut graph = Graph::new(&root_node);
+    let mut cwd: Node = root_node.clone();
     for line in input_data.lines().map(|x| x.trim()) {
         if line.is_empty() {
             continue;
         }
         if line.starts_with("$ cd") {
-            println!("cd command");
+            let node_name = line.split(' ').collect::<Vec<_>>()[2];
+            if node_name == ".." {
+                cwd = graph.get_parent(&cwd).unwrap();
+            } else {
+                cwd = Node {
+                    name: node_name.to_string(),
+                    size: 0,
+                };
+            }
         } else if line.starts_with("$ ls") {
-            println!("ls command");
+            continue;
         } else if line.starts_with("dir") {
-            println!("sub-dir");
-        } else if line.chars().next().unwrap().is_numeric() {
-            println!("file");
+            let dir_name = line.split(' ').collect::<Vec<_>>()[1];
+            let dir_node = Node {
+                name: dir_name.to_string(),
+                size: 0,
+            };
+            graph.add_edge(&cwd, &dir_node).unwrap();
         } else {
-            return Err(PuzzleError::UnexpectedCommand(line.to_string()));
+            let split_line = line.split(' ').collect::<Vec<_>>();
+            let file_size: usize = match split_line[0].parse() {
+                Ok(x) => Ok(x),
+                Err(_) => Err(PuzzleError::ParsingFileSize(line.to_string())),
+            }?;
+            let file_name = line.split(' ').collect::<Vec<_>>()[1];
+            let file_node = Node {
+                name: file_name.to_string(),
+                size: file_size,
+            };
+            graph.add_edge(&cwd, &file_node).unwrap();
         }
     }
     Ok(graph)
 }
 
 pub fn puzzle_1(input_data: &str) -> Result<usize, PuzzleError> {
-    let filesystem = build_filesystem_tree(input_data.trim());
-    Ok(0)
+    let filesystem = build_filesystem_tree(input_data)?;
+    let mut counter = 0;
+    for node in filesystem.node_list.iter().filter(|n| n.size == 0) {
+        let du = filesystem.sum_subtree_size(node);
+        if du <= 100000 {
+            counter += du;
+        }
+    }
+    println!("{:?}", filesystem);
+    Ok(counter)
 }
 
 pub fn main(data_dir: &str) {
@@ -101,7 +152,7 @@ pub fn main(data_dir: &str) {
         Ok(x) => println!(" Puzzle 1: {}", x),
         Err(e) => panic!("Error on Puzzle 1: {}", e),
     }
-    assert_eq!(answer_1, Ok(1210));
+    assert_eq!(answer_1, Ok(1334506));
 
     // Puzzle 2.
     // let answer_2 = puzzle_2(&data);
@@ -143,7 +194,7 @@ mod tests {
 
     #[test]
     fn puzzle_1_examples() {
-        assert_eq!(puzzle_1(EXAMPLE_1), Ok(7));
+        assert_eq!(puzzle_1(EXAMPLE_1), Ok(95437));
     }
 
     #[test]
