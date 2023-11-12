@@ -1,145 +1,204 @@
 use crate::data::load_raw;
 use std::collections::{HashMap, HashSet};
 use thiserror::Error;
+use uuid::Uuid;
 
 #[derive(Error, Debug, PartialEq, Eq)]
 pub enum PuzzleError {
-    // #[error("Unexpected command.")]
-    // UnexpectedCommand(String),
-    // #[error("Adding edge from non-existent node.")]
-    // AddingLinkFromNonexistentNode(String, String),
-    // #[error("Logic error trying to add a child without a current parent node.")]
-    // AddingChildToNoneNode,
-    #[error("Node does not have a parent.")]
+    #[error("No parent.")]
     NoParentNode(String),
-    #[error("Cannot parse file size.")]
+    #[error("No child.")]
+    NoChildNode(String),
+    #[error("Failed to parse file size.")]
     ParsingFileSize(String),
+    #[error("No minimum size that meets constrains.")]
+    NoMinimumValue,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 struct Node {
+    uuid: Uuid,
     name: String,
     size: usize,
 }
 
-#[derive(Debug, Clone)]
-struct Graph {
-    node_list: HashSet<Node>,
-    map: HashMap<Node, HashSet<Node>>,
+impl Node {
+    fn new(name: &str, size: usize) -> Self {
+        Node {
+            uuid: Uuid::new_v4(),
+            name: name.to_string(),
+            size,
+        }
+    }
+}
+
+struct Tree {
+    root: Node,
+    nodes: HashMap<Uuid, Node>,
+    edges: HashMap<Node, HashSet<Node>>,
     parents: HashMap<Node, Node>,
 }
 
-impl Graph {
-    fn new(root: &Node) -> Self {
-        let mut graph = Graph {
-            node_list: HashSet::new(),
-            map: HashMap::new(),
+impl Tree {
+    fn new() -> Self {
+        let root = Node::new("/", 0);
+        let mut nodes = HashMap::new();
+        nodes.insert(root.uuid, root.clone());
+        let mut edges = HashMap::new();
+        edges.insert(root.clone(), HashSet::new());
+
+        Tree {
+            root,
+            nodes,
+            edges,
             parents: HashMap::new(),
-        };
-        graph.node_list.insert(root.clone());
-        graph.map.insert(root.clone(), HashSet::new());
-        graph
-    }
-}
-
-impl Graph {
-    fn contains_node(&self, node: Node) -> bool {
-        self.node_list.contains(&node)
-    }
-
-    fn add_node(&mut self, node: &Node) {
-        self.node_list.insert(node.clone());
-    }
-
-    fn add_edge(&mut self, from: &Node, to: &Node) -> Result<(), PuzzleError> {
-        // Add link: from -> to.
-        if !self.map.contains_key(from) {
-            self.map.insert(from.clone(), HashSet::new());
         }
-        self.map.get_mut(from).unwrap().insert(to.clone());
-        // Add parent: to -> from.
-        self.parents.insert(to.clone(), from.clone());
-        // Add new node to list.
-        self.node_list.insert(to.clone());
+    }
+
+    fn get_parent(&self, node: &Node) -> Result<Node, PuzzleError> {
+        match self.parents.get(node) {
+            Some(n) => Ok(n.clone()),
+            None => Err(PuzzleError::NoParentNode(node.name.clone())),
+        }
+    }
+
+    fn get_child(&self, node: &Node, child_name: &str) -> Result<Node, PuzzleError> {
+        for child_node in self
+            .edges
+            .get(node)
+            .ok_or(PuzzleError::NoChildNode(node.name.clone()))?
+        {
+            if child_node.name == child_name {
+                return Ok(child_node.clone());
+            }
+        }
+        Err(PuzzleError::NoChildNode(node.name.clone()))
+    }
+
+    fn add_child(&mut self, parent: &Node, name: &str, size: usize) -> Result<(), PuzzleError> {
+        // If node with name already in children set, return that node.
+        let children_nodes = self
+            .edges
+            .get(parent)
+            .ok_or(PuzzleError::NoParentNode(parent.name.clone()))?;
+        for child_node in children_nodes.iter() {
+            if child_node.name == name {
+                return Ok(());
+            }
+        }
+
+        // Make new node and add to `nodes``, `edges`, and `parents` collections.
+        let new_node = Node::new(name, size);
+        self.nodes.insert(new_node.uuid, new_node.clone());
+        self.edges
+            .get_mut(parent)
+            .ok_or(PuzzleError::NoParentNode(parent.name.clone()))?
+            .insert(new_node.clone());
+        self.edges.insert(new_node.clone(), HashSet::new());
+        self.parents.insert(new_node, parent.clone());
         Ok(())
     }
+}
 
-    fn get_parent(&self, of: &Node) -> Result<Node, PuzzleError> {
-        Ok(self
-            .parents
-            .get(of)
-            .ok_or(PuzzleError::NoParentNode(of.name.clone()))
-            .unwrap()
-            .clone())
+impl Tree {
+    fn directory_nodes(&self) -> HashSet<Node> {
+        self.nodes
+            .values()
+            .filter(|n| n.size == 0)
+            .cloned()
+            .collect::<HashSet<_>>()
     }
-
-    fn sum_subtree_size(&self, node: &Node) -> usize {
-        let subtree_size: usize = match self.map.get(node) {
-            Some(children) => children.iter().map(|n| self.sum_subtree_size(n)).sum(),
+    fn calculate_size(&self, node: &Node, node_sizes: &mut HashMap<Node, usize>) -> usize {
+        if let Some(s) = node_sizes.get(node) {
+            return *s;
+        };
+        let mut size = node.size;
+        size += match self.edges.get(node) {
+            Some(children) => children
+                .iter()
+                .map(|n| self.calculate_size(n, node_sizes))
+                .sum(),
             None => 0,
         };
-        node.size + subtree_size
+        node_sizes.insert(node.clone(), size);
+        size
+    }
+
+    fn calculate_sizes(&self) -> HashMap<Node, usize> {
+        let mut sizes = HashMap::new();
+        let _ = self
+            .nodes
+            .values()
+            // .iter()
+            .map(|x| self.calculate_size(x, &mut sizes))
+            .collect::<Vec<usize>>();
+        sizes
     }
 }
 
-fn build_filesystem_tree(input_data: &str) -> Result<Graph, PuzzleError> {
-    let root_node = Node {
-        name: "/".to_string(),
-        size: 0,
-    };
-    let mut graph = Graph::new(&root_node);
-    let mut cwd: Node = root_node.clone();
-    for line in input_data.lines().map(|x| x.trim()) {
+fn build_filesystem_tree(input_data: &str) -> Result<Tree, PuzzleError> {
+    let mut fs: Tree = Tree::new();
+    let mut cwd = fs.root.clone();
+    for line in input_data.trim().lines().skip(1).map(|x| x.trim()) {
         if line.is_empty() {
             continue;
         }
         if line.starts_with("$ cd") {
             let node_name = line.split(' ').collect::<Vec<_>>()[2];
             if node_name == ".." {
-                cwd = graph.get_parent(&cwd).unwrap();
+                cwd = fs.get_parent(&cwd)?;
             } else {
-                cwd = Node {
-                    name: node_name.to_string(),
-                    size: 0,
-                };
+                cwd = fs.get_child(&cwd, node_name)?;
             }
         } else if line.starts_with("$ ls") {
             continue;
         } else if line.starts_with("dir") {
             let dir_name = line.split(' ').collect::<Vec<_>>()[1];
-            let dir_node = Node {
-                name: dir_name.to_string(),
-                size: 0,
-            };
-            graph.add_edge(&cwd, &dir_node).unwrap();
+            fs.add_child(&cwd, dir_name, 0)?;
         } else {
+            // Is a file.
             let split_line = line.split(' ').collect::<Vec<_>>();
             let file_size: usize = match split_line[0].parse() {
                 Ok(x) => Ok(x),
                 Err(_) => Err(PuzzleError::ParsingFileSize(line.to_string())),
             }?;
             let file_name = line.split(' ').collect::<Vec<_>>()[1];
-            let file_node = Node {
-                name: file_name.to_string(),
-                size: file_size,
-            };
-            graph.add_edge(&cwd, &file_node).unwrap();
+            fs.add_child(&cwd, file_name, file_size)?;
         }
     }
-    Ok(graph)
+    Ok(fs)
 }
 
 pub fn puzzle_1(input_data: &str) -> Result<usize, PuzzleError> {
-    let filesystem = build_filesystem_tree(input_data)?;
-    let mut counter = 0;
-    for node in filesystem.node_list.iter().filter(|n| n.size == 0) {
-        let du = filesystem.sum_subtree_size(node);
-        if du <= 100000 {
-            counter += du;
-        }
-    }
-    println!("{:?}", filesystem);
-    Ok(counter)
+    let fs = build_filesystem_tree(input_data)?;
+    let dir_nodes = fs.directory_nodes();
+    let size = fs
+        .calculate_sizes()
+        .iter()
+        .filter(|(n, s)| dir_nodes.contains(n) & (s <= &&100000))
+        .map(|(_, s)| s)
+        .sum();
+    Ok(size)
+}
+
+pub fn puzzle_2(input_data: &str) -> Result<usize, PuzzleError> {
+    let fs = build_filesystem_tree(input_data)?;
+    let dir_nodes = fs.directory_nodes();
+    let sizes = fs.calculate_sizes();
+
+    let device_size = 70000000;
+    let space_required = 30000000;
+    let space_used = sizes.get(&fs.root).unwrap();
+    let min_deletion_size = space_required - (device_size - space_used);
+
+    let deletion_size = sizes
+        .iter()
+        .filter(|(n, s)| dir_nodes.contains(n) & (s >= &&min_deletion_size))
+        .map(|(_, s)| s)
+        .min()
+        .ok_or(PuzzleError::NoMinimumValue)
+        .unwrap();
+    Ok(*deletion_size)
 }
 
 pub fn main(data_dir: &str) {
@@ -155,17 +214,17 @@ pub fn main(data_dir: &str) {
     assert_eq!(answer_1, Ok(1334506));
 
     // Puzzle 2.
-    // let answer_2 = puzzle_2(&data);
-    // match &answer_2 {
-    //     Ok(x) => println!(" Puzzle 2: {}", x),
-    //     Err(e) => panic!("Error on Puzzle 2: {}", e),
-    // }
-    // assert_eq!(answer_2, Ok(3476));
+    let answer_2 = puzzle_2(&data);
+    match &answer_2 {
+        Ok(x) => println!(" Puzzle 2: {}", x),
+        Err(e) => panic!("Error on Puzzle 2: {}", e),
+    }
+    assert_eq!(answer_2, Ok(7421137));
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::solutions::day07::puzzle_1;
+    use crate::solutions::day07::{puzzle_1, puzzle_2};
 
     const EXAMPLE_1: &str = "
     $ cd /
@@ -199,6 +258,6 @@ mod tests {
 
     #[test]
     fn puzzle_2_examples() {
-        // assert_eq!(puzzle_2(EXAMPLE_1), Ok(19));
+        assert_eq!(puzzle_2(EXAMPLE_1), Ok(24933642));
     }
 }
