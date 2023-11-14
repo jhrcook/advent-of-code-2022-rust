@@ -272,13 +272,11 @@ mod tests {
 
     #[test]
     fn puzzle_1_examples() {
-        env_logger::init();
         assert_eq!(puzzle_1(EXAMPLE_1), Ok(21));
     }
 
     #[test]
     fn puzzle_2_examples() {
-        env_logger::init();
         assert_eq!(puzzle_2(EXAMPLE_1), Ok(8));
     }
 }
