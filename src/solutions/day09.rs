@@ -11,6 +11,8 @@ pub enum PuzzleError {
     FailedParsing(String),
     #[error("Failed parsing integer: {}.", .0)]
     ParseIntError(std::num::ParseIntError),
+    #[error("Performing action on rope with no knots.")]
+    NoKnots,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -33,6 +35,17 @@ impl fmt::Display for Direction {
     }
 }
 
+impl Direction {
+    fn value(self) -> usize {
+        match self {
+            Direction::Up(n) => n,
+            Direction::Down(n) => n,
+            Direction::Left(n) => n,
+            Direction::Right(n) => n,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 struct Knot {
     x: usize,
@@ -42,6 +55,17 @@ struct Knot {
 impl fmt::Display for Knot {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "({},{})", self.x, self.y)
+    }
+}
+
+impl Knot {
+    fn step(&mut self, direction: Direction) {
+        (self.x, self.y) = match direction {
+            Direction::Up(_) => (self.x, self.y + 1),
+            Direction::Down(_) => (self.x, self.y - 1),
+            Direction::Left(_) => (self.x - 1, self.y),
+            Direction::Right(_) => (self.x + 1, self.y),
+        }
     }
 }
 
@@ -72,6 +96,29 @@ impl Rope {
             knots.push(Knot { x: 0, y: 0 });
         }
         Rope { knots }
+    }
+
+    fn step(&self, direction: Direction) -> Result<(), PuzzleError> {
+        // TODO: Still working on the logic here.
+        // May be best to create a new vector of knots during the process.
+        // Should make ownership management easier.
+        // Will also make it easier to know starting and finishing positions.
+
+        // Move head knot.
+        self.knots
+            .first()
+            .ok_or(PuzzleError::NoKnots)?
+            .clone()
+            .step(direction);
+        // Update all other knots.
+        Ok(())
+    }
+
+    fn perform_motion(&mut self, direction: Direction) -> Result<(), PuzzleError> {
+        for _ in 0..direction.value() {
+            self.step(direction)?;
+        }
+        Ok(())
     }
 }
 
