@@ -1,5 +1,4 @@
 use crate::data::load_raw;
-use log;
 use std::cmp::max;
 use std::{collections::HashSet, fmt};
 use thiserror::Error;
@@ -81,17 +80,36 @@ impl Knot {
         }
     }
 
+    fn euclidean_distance(&self, to: &Knot) -> f32 {
+        let dx = (self.x - to.x).pow(2);
+        let dy = (self.y - to.y).pow(2);
+        f32::sqrt((dx + dy) as f32)
+    }
+
     fn chebyshev_distance(&self, to: &Knot) -> usize {
         max(self.x.abs_diff(to.x), self.y.abs_diff(to.y))
     }
 
-    fn move_towards(&self, lead_knot: &Knot, lead_knot_prev: &Knot) -> Knot {
-        // If the previous lead knot is farther than 1 away, this knot will take the
-        // position it occupied previously.
-        match self.chebyshev_distance(lead_knot) {
-            ..=1 => self.clone(),
-            _ => lead_knot_prev.clone(),
+    fn move_towards(&self, lead_knot: &Knot) -> Knot {
+        if self.chebyshev_distance(lead_knot) <= 1 {
+            return *self;
         }
+        let mut closest_new_knot = *self;
+        let mut closest_knot_dist = 10.0;
+        for dx in -1..=1 {
+            for dy in -1..=1 {
+                let new_knot = Knot {
+                    x: self.x + dx,
+                    y: self.y + dy,
+                };
+                let dist = new_knot.euclidean_distance(lead_knot);
+                if dist < closest_knot_dist {
+                    closest_new_knot = new_knot;
+                    closest_knot_dist = dist;
+                }
+            }
+        }
+        closest_new_knot
     }
 }
 
@@ -129,7 +147,6 @@ impl Rope {
         let mut new_knots = Vec::new();
 
         // Move head knot based on the direction.
-        log::trace!("Moving head knot.");
         let new_head = self
             .knots
             .first()
@@ -140,8 +157,7 @@ impl Rope {
         // Update all other knots.
         for (i, k) in self.knots.iter().skip(1).enumerate() {
             let lead_k = new_knots[i]; // Because of skip, the index points to prior knot.
-            let lead_k_previous = self.knots[i];
-            let new_k = k.move_towards(&lead_k, &lead_k_previous);
+            let new_k = k.move_towards(&lead_k);
             new_knots.push(new_k);
         }
 
@@ -153,7 +169,7 @@ impl Rope {
         let mut tail_locations = HashSet::new();
         for _ in 0..direction.value() {
             self.step(direction)?;
-            tail_locations.insert(self.knots.last().ok_or(PuzzleError::NoKnots)?.clone());
+            tail_locations.insert(*self.knots.last().ok_or(PuzzleError::NoKnots)?);
         }
         Ok(tail_locations)
     }
@@ -254,13 +270,11 @@ mod tests {
 
     #[test]
     fn puzzle_1_examples() {
-        env_logger::init();
         assert_eq!(puzzle_1(EXAMPLE_1), Ok(13));
     }
 
     #[test]
     fn puzzle_2_examples() {
-        env_logger::init();
         assert_eq!(puzzle_2(EXAMPLE_1), Ok(1));
         assert_eq!(puzzle_2(EXAMPLE_2), Ok(36));
     }
