@@ -1,4 +1,4 @@
-use advent_of_code_2022_rust::run_all;
+use advent_of_code_2022_rust::{run_all, run_day};
 use clap::Parser;
 use std::time::Instant;
 
@@ -7,15 +7,25 @@ use std::time::Instant;
 #[command(author, version, about, long_about = None)]
 struct Args {
     /// Data directory.
-    #[arg(short, long, default_value_t = String::from("puzzle-input"))]
+    #[arg(default_value_t = String::from("puzzle-input"))]
     data_dir: String,
+    #[arg(short, long)]
+    day: Option<usize>,
 }
 
 fn main() {
-    println!("Running all solutions.");
     let args = Args::parse();
     let start = Instant::now();
-    run_all(&args.data_dir);
+    match args.day {
+        Some(d) => {
+            println!("Running puzzle {}.", d);
+            run_day(&args.data_dir, &d);
+        }
+        None => {
+            println!("Running all puzzles.");
+            run_all(&args.data_dir);
+        }
+    };
     let duration = start.elapsed();
     print!("Done! 🎉");
     println!(" -- Elapsed time: {:?}", duration);
