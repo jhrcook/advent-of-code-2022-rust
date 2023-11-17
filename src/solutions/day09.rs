@@ -1,6 +1,7 @@
 use crate::data::load_raw;
 use log;
-use std::fmt;
+use std::cmp::max;
+use std::{collections::HashSet, fmt};
 use thiserror::Error;
 
 #[derive(Error, Debug, PartialEq, Eq)]
@@ -46,10 +47,10 @@ impl Direction {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-struct Knot {
-    x: usize,
-    y: usize,
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct Knot {
+    x: isize,
+    y: isize,
 }
 
 impl fmt::Display for Knot {
@@ -59,12 +60,37 @@ impl fmt::Display for Knot {
 }
 
 impl Knot {
-    fn step(&mut self, direction: Direction) {
-        (self.x, self.y) = match direction {
-            Direction::Up(_) => (self.x, self.y + 1),
-            Direction::Down(_) => (self.x, self.y - 1),
-            Direction::Left(_) => (self.x - 1, self.y),
-            Direction::Right(_) => (self.x + 1, self.y),
+    fn step(&self, direction: &Direction) -> Knot {
+        match direction {
+            Direction::Up(_) => Knot {
+                x: self.x,
+                y: self.y + 1,
+            },
+            Direction::Down(_) => Knot {
+                x: self.x,
+                y: self.y - 1,
+            },
+            Direction::Left(_) => Knot {
+                x: self.x - 1,
+                y: self.y,
+            },
+            Direction::Right(_) => Knot {
+                x: self.x + 1,
+                y: self.y,
+            },
+        }
+    }
+
+    fn chebyshev_distance(&self, to: &Knot) -> usize {
+        max(self.x.abs_diff(to.x), self.y.abs_diff(to.y))
+    }
+
+    fn move_towards(&self, lead_knot: &Knot, lead_knot_prev: &Knot) -> Knot {
+        // If the previous lead knot is farther than 1 away, this knot will take the
+        // position it occupied previously.
+        match self.chebyshev_distance(lead_knot) {
+            ..=1 => self.clone(),
+            _ => lead_knot_prev.clone(),
         }
     }
 }
@@ -98,27 +124,38 @@ impl Rope {
         Rope { knots }
     }
 
-    fn step(&self, direction: Direction) -> Result<(), PuzzleError> {
-        // TODO: Still working on the logic here.
-        // May be best to create a new vector of knots during the process.
-        // Should make ownership management easier.
-        // Will also make it easier to know starting and finishing positions.
+    fn step(&mut self, direction: &Direction) -> Result<(), PuzzleError> {
+        // New knot locations.
+        let mut new_knots = Vec::new();
 
-        // Move head knot.
-        self.knots
+        // Move head knot based on the direction.
+        log::trace!("Moving head knot.");
+        let new_head = self
+            .knots
             .first()
             .ok_or(PuzzleError::NoKnots)?
-            .clone()
             .step(direction);
+        new_knots.push(new_head);
+
         // Update all other knots.
+        for (i, k) in self.knots.iter().skip(1).enumerate() {
+            let lead_k = new_knots[i]; // Because of skip, the index points to prior knot.
+            let lead_k_previous = self.knots[i];
+            let new_k = k.move_towards(&lead_k, &lead_k_previous);
+            new_knots.push(new_k);
+        }
+
+        self.knots = new_knots;
         Ok(())
     }
 
-    fn perform_motion(&mut self, direction: Direction) -> Result<(), PuzzleError> {
+    fn perform_motion(&mut self, direction: &Direction) -> Result<HashSet<Knot>, PuzzleError> {
+        let mut tail_locations = HashSet::new();
         for _ in 0..direction.value() {
             self.step(direction)?;
+            tail_locations.insert(self.knots.last().ok_or(PuzzleError::NoKnots)?.clone());
         }
-        Ok(())
+        Ok(tail_locations)
     }
 }
 
@@ -148,13 +185,26 @@ fn parse_directions(input_data: &str) -> Result<Vec<Direction>, PuzzleError> {
 
 pub fn puzzle_1(input_data: &str) -> Result<usize, PuzzleError> {
     let directions = parse_directions(input_data)?;
-    log::debug!("Directions:");
-    for (i, d) in directions.iter().enumerate() {
-        log::debug!("  {})  {}", i, d);
-    }
     let mut rope = Rope::new(2);
-    log::debug!("Rope: {}", rope);
-    Ok(0)
+
+    let mut tail_locations = HashSet::new();
+    for direction in directions.iter() {
+        tail_locations.extend(rope.perform_motion(direction)?);
+    }
+
+    Ok(tail_locations.len())
+}
+
+pub fn puzzle_2(input_data: &str) -> Result<usize, PuzzleError> {
+    let directions = parse_directions(input_data)?;
+    let mut rope = Rope::new(10);
+
+    let mut tail_locations = HashSet::new();
+    for direction in directions.iter() {
+        tail_locations.extend(rope.perform_motion(direction)?);
+    }
+
+    Ok(tail_locations.len())
 }
 
 pub fn main(data_dir: &str) {
@@ -167,20 +217,20 @@ pub fn main(data_dir: &str) {
         Ok(x) => println!(" Puzzle 1: {}", x),
         Err(e) => panic!("Error on Puzzle 1: {}", e),
     }
-    assert_eq!(answer_1, Ok(1801));
+    assert_eq!(answer_1, Ok(6332));
 
     // Puzzle 2.
-    // let answer_2 = puzzle_2(&data);
-    // match &answer_2 {
-    //     Ok(x) => println!(" Puzzle 2: {}", x),
-    //     Err(e) => panic!("Error on Puzzle 2: {}", e),
-    // }
-    // assert_eq!(answer_2, Ok(209880));
+    let answer_2 = puzzle_2(&data);
+    match &answer_2 {
+        Ok(x) => println!(" Puzzle 2: {}", x),
+        Err(e) => panic!("Error on Puzzle 2: {}", e),
+    }
+    assert_eq!(answer_2, Ok(2511));
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::solutions::day09::puzzle_1;
+    use crate::solutions::day09::{puzzle_1, puzzle_2};
 
     const EXAMPLE_1: &str = "
     R 4
@@ -192,15 +242,26 @@ mod tests {
     L 5
     R 2";
 
+    const EXAMPLE_2: &str = "
+    R 5
+    U 8
+    L 8
+    D 3
+    R 17
+    D 10
+    L 25
+    U 20";
+
     #[test]
     fn puzzle_1_examples() {
         env_logger::init();
-        assert_eq!(puzzle_1(EXAMPLE_1), Ok(21));
+        assert_eq!(puzzle_1(EXAMPLE_1), Ok(13));
     }
 
-    // #[test]
-    // fn puzzle_2_examples() {
-    //     env_logger::init();
-    //     assert_eq!(puzzle_2(EXAMPLE_1), Ok(8));
-    // }
+    #[test]
+    fn puzzle_2_examples() {
+        env_logger::init();
+        assert_eq!(puzzle_2(EXAMPLE_1), Ok(1));
+        assert_eq!(puzzle_2(EXAMPLE_2), Ok(36));
+    }
 }
