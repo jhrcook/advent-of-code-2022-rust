@@ -378,7 +378,7 @@ pub fn main(data_dir: &str) {
         Ok(x) => println!(" Puzzle 2: {}", x),
         Err(e) => panic!("Error on Puzzle 2: {}", e),
     }
-    // assert_eq!(answer_2, Ok(113232));
+    assert_eq!(answer_2, Ok(29703395016));
 }
 
 #[cfg(test)]
