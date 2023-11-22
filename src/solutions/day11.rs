@@ -143,7 +143,7 @@ impl std::fmt::Display for Monkey {
 }
 
 impl Monkey {
-    fn inspect_items(&mut self) -> Result<Vec<MonkeyDecision>, PuzzleError> {
+    fn inspect_items_1(&mut self) -> Result<Vec<MonkeyDecision>, PuzzleError> {
         log::debug!(
             "Monkey {} is inspecting {} items.",
             self.id,
@@ -167,6 +167,34 @@ impl Monkey {
                 }
             };
             results.push(MonkeyDecision::new(receiving_monkey, worry_reduced_val));
+        }
+        self.items = Vec::new();
+        log::debug!("Final results for monkey:\n{:?}", results);
+        Ok(results)
+    }
+
+    fn inspect_items_2(&mut self) -> Result<Vec<MonkeyDecision>, PuzzleError> {
+        log::debug!(
+            "Monkey {} is inspecting {} items.",
+            self.id,
+            self.items.len()
+        );
+        let mut results = Vec::new();
+        for item in self.items.iter() {
+            log::debug!("Starting worry level: {}.", item);
+            let post_inspection_val = self.operation.perform(item)?;
+            log::debug!("Post-inspection worry level: {}", post_inspection_val);
+            let receiving_monkey = match post_inspection_val % self.test_division_value {
+                0 => {
+                    log::debug!("Test result TRUE  ->  monkey {}", self.true_monkey);
+                    self.true_monkey
+                }
+                _ => {
+                    log::debug!("Test result FALSE  ->  monkey {}", self.false_monkey);
+                    self.false_monkey
+                }
+            };
+            results.push(MonkeyDecision::new(receiving_monkey, post_inspection_val));
         }
         self.items = Vec::new();
         log::debug!("Final results for monkey:\n{:?}", results);
@@ -216,19 +244,40 @@ impl Monkeys {
         Ok(())
     }
 
+    fn monkey_divisor(&self) -> isize {
+        self.monkeys
+            .values()
+            .map(|m| m.test_division_value)
+            .product()
+    }
+
+    fn reduce_all_monkey_values(&mut self) {
+        log::info!("Reducing monkey values.");
+        let div = self.monkey_divisor();
+        for monkey in self.monkeys.values_mut() {
+            monkey.items = monkey.items.iter().map(|x| *x % div).collect();
+        }
+    }
+
     fn perform_round(
         &mut self,
         item_counter: &mut HashMap<usize, usize>,
+        div_by_3: bool,
     ) -> Result<(), PuzzleError> {
         for monkey_id in self.order.clone().iter() {
-            log::debug!("-------------------------------------------");
             let monkey = self
                 .monkeys
                 .get_mut(monkey_id)
                 .ok_or(PuzzleError::NoMonkeyWithId(*monkey_id))?;
             *item_counter.entry(*monkey_id).or_insert(0) += monkey.items.len();
-            let decision_results = monkey.inspect_items()?;
+            let decision_results = match div_by_3 {
+                true => monkey.inspect_items_1(),
+                false => monkey.inspect_items_2(),
+            }?;
             self.disperse_results(&decision_results)?;
+        }
+        if !div_by_3 {
+            self.reduce_all_monkey_values()
         }
         Ok(())
     }
@@ -290,7 +339,20 @@ pub fn puzzle_1(input_data: &str) -> Result<usize, PuzzleError> {
     let mut item_counter = HashMap::new();
     for i in 0..20 {
         log::info!("Round {}", i);
-        monkeys.perform_round(&mut item_counter)?;
+        monkeys.perform_round(&mut item_counter, true)?;
+    }
+    let mut item_counts = item_counter.values().collect::<Vec<_>>();
+    item_counts.sort();
+    item_counts.reverse();
+    Ok(item_counts[0] * item_counts[1])
+}
+
+pub fn puzzle_2(input_data: &str, n_rounds: usize) -> Result<usize, PuzzleError> {
+    let mut monkeys = parse_input(input_data)?;
+    let mut item_counter = HashMap::new();
+    for i in 0..n_rounds {
+        log::info!("Round {}", i);
+        monkeys.perform_round(&mut item_counter, false)?;
     }
     let mut item_counts = item_counter.values().collect::<Vec<_>>();
     item_counts.sort();
@@ -311,17 +373,17 @@ pub fn main(data_dir: &str) {
     assert_eq!(answer_1, Ok(113232));
 
     // Puzzle 2.
-    // let answer_2 = puzzle_2(&data);
-    // match &answer_2 {
-    //     Ok(x) => println!(" Puzzle 2: {}", x),
-    //     Err(e) => panic!("Error on Puzzle 2: {}", e),
-    // }
+    let answer_2 = puzzle_2(&data, 10000);
+    match &answer_2 {
+        Ok(x) => println!(" Puzzle 2: {}", x),
+        Err(e) => panic!("Error on Puzzle 2: {}", e),
+    }
     // assert_eq!(answer_2, Ok(113232));
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::solutions::day11::puzzle_1;
+    use crate::solutions::day11::{puzzle_1, puzzle_2};
 
     const EXAMPLE_1: &str = "
     Monkey 0:
@@ -354,9 +416,26 @@ mod tests {
     ";
 
     #[test]
-    fn puzzle_1_example_1() {
-        env_logger::init();
+    fn puzzle_1_example() {
         let res = puzzle_1(EXAMPLE_1);
         assert_eq!(res, Ok(10605));
+    }
+
+    #[test]
+    fn puzzle_2_example_n1() {
+        let res: Result<usize, crate::solutions::day11::PuzzleError> = puzzle_2(EXAMPLE_1, 1);
+        assert_eq!(res, Ok(24));
+    }
+
+    #[test]
+    fn puzzle_2_example_n20() {
+        let res: Result<usize, crate::solutions::day11::PuzzleError> = puzzle_2(EXAMPLE_1, 20);
+        assert_eq!(res, Ok(10197));
+    }
+
+    #[test]
+    fn puzzle_2_example_n10000() {
+        let res = puzzle_2(EXAMPLE_1, 10000);
+        assert_eq!(res, Ok(2713310158));
     }
 }
