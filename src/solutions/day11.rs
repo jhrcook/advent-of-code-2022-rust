@@ -1,6 +1,5 @@
-use std::collections::HashMap;
-
 use crate::data::load_raw;
+use std::collections::HashMap;
 use thiserror::Error;
 
 #[derive(Error, Debug, PartialEq, Eq)]

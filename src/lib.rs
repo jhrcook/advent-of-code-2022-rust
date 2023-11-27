@@ -13,6 +13,7 @@ pub fn run_all(data_dir: &str) {
     solutions::day09::main(data_dir);
     solutions::day10::main(data_dir);
     solutions::day11::main(data_dir);
+    solutions::day12::main(data_dir);
 }
 
 pub fn run_day(data_dir: &str, day: &usize) {
@@ -28,6 +29,7 @@ pub fn run_day(data_dir: &str, day: &usize) {
         9 => solutions::day09::main(data_dir),
         10 => solutions::day10::main(data_dir),
         11 => solutions::day11::main(data_dir),
+        12 => solutions::day12::main(data_dir),
         _ => panic!("Puzzle for day {} not completed yet.", day),
     }
 }
